@@ -1,0 +1,1 @@
+module EntryPoint = do Bot.run()

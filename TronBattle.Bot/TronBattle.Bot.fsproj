@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Library.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\bot.fsx" />
+  </ItemGroup>
+
+  <Target Name="ConcatenateFiles">
+    <ItemGroup>
+      <ConcatFiles Include="
+          %(Compile.Identity);
+          ..\template.fsx"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <FileContents Include="$([System.IO.File]::ReadAllText(%(ConcatFiles.Identity)))%0a" />
+    </ItemGroup>
+
+    <WriteLinesToFile File="..\bot.fsx" Lines="@(FileContents)" Overwrite="true" />
+  </Target>
+
+  <Target Name="ConcatenateAfterBuild" AfterTargets="AfterBuild">
+    <CallTarget Targets="ConcatenateFiles"/>
+  </Target>
+
+</Project>
