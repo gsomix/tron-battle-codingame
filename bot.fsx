@@ -1,5 +1,6 @@
 namespace TronBattle
 
+open System
 open System.Collections.Generic
 
 module Map =
@@ -10,6 +11,15 @@ module Map =
             then Map.add key result.Value state
             else state
         )
+        
+module List =
+    let rec pairs l =
+        match l with
+        | [] | [_] -> []
+        | h :: t -> 
+            [for x in t do
+                yield h,x
+             yield! pairs t]
 
 module Bot =
 
@@ -53,7 +63,9 @@ module Bot =
                         yield (x', y')
                 ]
             
-            queue.Enqueue(startPosition, 0)
+            for startPos in expand(startPosition) do
+                queue.Enqueue(startPos, 1)
+                
             while queue.Count > 0 do
                 let (x, y), dist = queue.Dequeue()
                 map.[x, y] <- dist               
@@ -65,6 +77,17 @@ module Bot =
         let map = Array2D.create Width Height EmptyTile
         let distanceMaps = playersPositions |> Array.map (distanceMap tiles)
         
+        (*for m in distanceMaps do
+            for y = 0 to Height - 1 do
+                for x = 0 to Width - 1 do
+                    if m.[x, y] = EmptyTile
+                    then eprintf " . "
+                    elif m.[x, y] = 601
+                    then eprintf " x "
+                    else eprintf "%2d " m.[x, y]
+                eprintfn ""
+            eprintfn ""*)
+        
         for y = 0 to Height - 1 do
             for x = 0 to Width - 1 do
                 let closestPlayerInd, distance =
@@ -74,6 +97,25 @@ module Bot =
                     |> fun (ind, map) -> ind, map.[x, y] 
                 if distance < MaxDistance
                 then map.[x, y] <- closestPlayerInd
+                
+                if distanceMaps
+                   |> Array.indexed
+                   |> Array.toList
+                   |> List.pairs
+                   |> List.exists (fun ((i1, d1), (i2, d2)) ->
+                       d1.[x, y] = d2.[x, y] &&
+                       d1.[x, y] <> MaxDistance &&
+                       d2.[x,y] <> MaxDistance &&
+                       (map.[x, y] = i1 || map.[x, y] = i2))
+                then map.[x, y] <- -2
+                
+                (*if map.[x, y] = EmptyTile
+                then eprintf " . "
+                elif map.[x, y] = -2
+                then eprintf " x "
+                else eprintf "%2d " map.[x, y]*)
+            //eprintfn ""    
+        //eprintfn ""         
         map
         
     let score (tiles: int[,]) (playersPositions: Position[]) botInd =
@@ -82,10 +124,13 @@ module Bot =
         let voronoiMap = voronoiMap tiles playersPositions 
 
         let mutable score = 0
+        let mutable othersScore = 0
         for y = 0 to Height - 1 do
             for x = 0 to Width - 1 do
                 if voronoiMap.[x, y] = botInd
                 then score <- score + distanceMap.[x, y]
+                elif voronoiMap.[x, y] >= 0
+                then othersScore <- score + distanceMap.[x, y]
         score
 
     let run() = 
@@ -113,6 +158,8 @@ module Bot =
                 moves
                 |> Map.choose (fun _ move -> applyMove tiles playersPositions botInd move)
                 |> Map.map (fun _ (futureTiles, playersPositions) -> score futureTiles playersPositions botInd)
+            
+            eprintfn "SCORES %A" scores
                 
             let command =
                 scores

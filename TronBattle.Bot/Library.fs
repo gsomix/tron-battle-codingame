@@ -3,21 +3,31 @@
 open System.Collections.Generic
 
 module Map =
-    let choose (chooser : 'T -> 'b -> 'c option) (source : Map<'T,'b>) =
+    let choose chooser source =
         (Map.empty, source) ||> Map.fold (fun state key value ->
             let result = chooser key value
             if Option.isSome result
             then Map.add key result.Value state
             else state
         )
+        
+module List =
+    let rec pairs list =
+        match list with
+        | [] | [_] -> []
+        | head :: tail -> 
+            [ for x in tail do
+                yield head, x
+              yield! pairs tail ]
 
 module Bot =
 
     type Position = int*int
-    let Width = 30
-    let Height = 20
-    let EmptyTile = -1
-    let MaxDistance = Width * Height + 1
+    let [<Literal>] Width = 30
+    let [<Literal>] Height = 20
+    let [<Literal>] EmptyTile = -1
+    let [<Literal>] Equidistant = -2
+    let [<Literal>] InfDistance = 601 // Width * Height + 1
     
     let dist (x0, y0) (x1, y1) = abs(x0 - x1) + abs(y0 - y1)
     
@@ -38,7 +48,7 @@ module Bot =
         
     let distanceMap (tiles: int[,]) (startPosition: Position)  =
         let queue = Queue<_>(600)
-        let map = Array2D.create Width Height MaxDistance
+        let map = Array2D.create Width Height InfDistance
         let visited = Array2D.create Width Height false
 
         if not (inbounds startPosition)
@@ -53,7 +63,9 @@ module Bot =
                         yield (x', y')
                 ]
             
-            queue.Enqueue(startPosition, 0)
+            for startPos in expand(startPosition) do
+                queue.Enqueue(startPos, 1)
+                
             while queue.Count > 0 do
                 let (x, y), dist = queue.Dequeue()
                 map.[x, y] <- dist               
@@ -64,7 +76,7 @@ module Bot =
     let voronoiMap (tiles: int[,]) (playersPositions: Position[]) =
         let map = Array2D.create Width Height EmptyTile
         let distanceMaps = playersPositions |> Array.map (distanceMap tiles)
-        
+
         for y = 0 to Height - 1 do
             for x = 0 to Width - 1 do
                 let closestPlayerInd, distance =
@@ -72,8 +84,19 @@ module Bot =
                     |> Array.indexed
                     |> Array.minBy (fun (_, distanceMap) -> distanceMap.[x, y])
                     |> fun (ind, map) -> ind, map.[x, y] 
-                if distance < MaxDistance
+                if distance < InfDistance
                 then map.[x, y] <- closestPlayerInd
+                
+                if distanceMaps
+                   |> Array.indexed
+                   |> Array.toList
+                   |> List.pairs
+                   |> List.exists (fun ((i1, d1), (i2, d2)) ->
+                       d1.[x, y] = d2.[x, y] &&
+                       d1.[x, y] <> InfDistance &&
+                       d2.[x, y] <> InfDistance &&
+                       (map.[x, y] = i1 || map.[x, y] = i2))
+                then map.[x, y] <- Equidistant      
         map
         
     let score (tiles: int[,]) (playersPositions: Position[]) botInd =
@@ -113,6 +136,8 @@ module Bot =
                 moves
                 |> Map.choose (fun _ move -> applyMove tiles playersPositions botInd move)
                 |> Map.map (fun _ (futureTiles, playersPositions) -> score futureTiles playersPositions botInd)
+            
+            eprintfn "SCORES %A" scores
                 
             let command =
                 scores
