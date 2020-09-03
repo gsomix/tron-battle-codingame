@@ -1,10 +1,9 @@
 namespace TronBattle
 
-open System
 open System.Collections.Generic
 
 module Map =
-    let choose (chooser : 'T -> 'b -> 'c option) (source : Map<'T,'b>) =
+    let choose chooser source =
         (Map.empty, source) ||> Map.fold (fun state key value ->
             let result = chooser key value
             if Option.isSome result
@@ -13,21 +12,22 @@ module Map =
         )
         
 module List =
-    let rec pairs l =
-        match l with
+    let rec pairs list =
+        match list with
         | [] | [_] -> []
-        | h :: t -> 
-            [for x in t do
-                yield h,x
-             yield! pairs t]
+        | head :: tail -> 
+            [ for x in tail do
+                yield head, x
+              yield! pairs tail ]
 
 module Bot =
 
     type Position = int*int
-    let Width = 30
-    let Height = 20
-    let EmptyTile = -1
-    let MaxDistance = Width * Height + 1
+    let [<Literal>] Width = 30
+    let [<Literal>] Height = 20
+    let [<Literal>] EmptyTile = -1
+    let [<Literal>] Equidistant = -2
+    let [<Literal>] InfDistance = 601 // Width * Height + 1
     
     let dist (x0, y0) (x1, y1) = abs(x0 - x1) + abs(y0 - y1)
     
@@ -48,7 +48,7 @@ module Bot =
         
     let distanceMap (tiles: int[,]) (startPosition: Position)  =
         let queue = Queue<_>(600)
-        let map = Array2D.create Width Height MaxDistance
+        let map = Array2D.create Width Height InfDistance
         let visited = Array2D.create Width Height false
 
         if not (inbounds startPosition)
@@ -76,18 +76,7 @@ module Bot =
     let voronoiMap (tiles: int[,]) (playersPositions: Position[]) =
         let map = Array2D.create Width Height EmptyTile
         let distanceMaps = playersPositions |> Array.map (distanceMap tiles)
-        
-        (*for m in distanceMaps do
-            for y = 0 to Height - 1 do
-                for x = 0 to Width - 1 do
-                    if m.[x, y] = EmptyTile
-                    then eprintf " . "
-                    elif m.[x, y] = 601
-                    then eprintf " x "
-                    else eprintf "%2d " m.[x, y]
-                eprintfn ""
-            eprintfn ""*)
-        
+
         for y = 0 to Height - 1 do
             for x = 0 to Width - 1 do
                 let closestPlayerInd, distance =
@@ -95,7 +84,7 @@ module Bot =
                     |> Array.indexed
                     |> Array.minBy (fun (_, distanceMap) -> distanceMap.[x, y])
                     |> fun (ind, map) -> ind, map.[x, y] 
-                if distance < MaxDistance
+                if distance < InfDistance
                 then map.[x, y] <- closestPlayerInd
                 
                 if distanceMaps
@@ -104,18 +93,10 @@ module Bot =
                    |> List.pairs
                    |> List.exists (fun ((i1, d1), (i2, d2)) ->
                        d1.[x, y] = d2.[x, y] &&
-                       d1.[x, y] <> MaxDistance &&
-                       d2.[x,y] <> MaxDistance &&
+                       d1.[x, y] <> InfDistance &&
+                       d2.[x, y] <> InfDistance &&
                        (map.[x, y] = i1 || map.[x, y] = i2))
-                then map.[x, y] <- -2
-                
-                (*if map.[x, y] = EmptyTile
-                then eprintf " . "
-                elif map.[x, y] = -2
-                then eprintf " x "
-                else eprintf "%2d " map.[x, y]*)
-            //eprintfn ""    
-        //eprintfn ""         
+                then map.[x, y] <- Equidistant      
         map
         
     let score (tiles: int[,]) (playersPositions: Position[]) botInd =
@@ -124,13 +105,10 @@ module Bot =
         let voronoiMap = voronoiMap tiles playersPositions 
 
         let mutable score = 0
-        let mutable othersScore = 0
         for y = 0 to Height - 1 do
             for x = 0 to Width - 1 do
                 if voronoiMap.[x, y] = botInd
                 then score <- score + distanceMap.[x, y]
-                elif voronoiMap.[x, y] >= 0
-                then othersScore <- score + distanceMap.[x, y]
         score
 
     let run() = 
