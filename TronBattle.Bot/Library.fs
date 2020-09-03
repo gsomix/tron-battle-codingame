@@ -108,7 +108,7 @@ module Bot =
         for y = 0 to Height - 1 do
             for x = 0 to Width - 1 do
                 if voronoiMap.[x, y] = botInd
-                then score <- score + distanceMap.[x, y]
+                then score <- score + int (sqrt (float (distanceMap.[x, y])))
         score
 
     let run() = 
