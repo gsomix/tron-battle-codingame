@@ -351,3 +351,6 @@ MigrationBackup/
 
 # IDEA
 .idea/
+
+# Bot code
+bot.fsx
