@@ -31,13 +31,13 @@ module Bot =
     
     let dist (x0, y0) (x1, y1) = abs(x0 - x1) + abs(y0 - y1)
     
-    let inbounds (x, y) = x >= 0 && x < Width && y >= 0 && y < Height
+    let isInBounds (x, y) = x >= 0 && x < Width && y >= 0 && y < Height
         
     let applyMove (tiles: int[,]) (playersPositions: Position[]) botInd (dx, dy) =
         let x, y = playersPositions.[botInd]
         let x', y' = x + dx, y + dy
 
-        if inbounds(x', y') && tiles.[x', y'] = EmptyTile
+        if isInBounds (x', y') && tiles.[x', y'] = EmptyTile
         then
             let grid' = Array2D.copy tiles
             let playersPositions' = Array.copy playersPositions
@@ -51,13 +51,13 @@ module Bot =
         let map = Array2D.create Width Height InfDistance
         let visited = Array2D.create Width Height false
 
-        if not (inbounds startPosition)
+        if not (isInBounds startPosition)
         then map
         else        
             let expand (x, y) =
                 [ for (dx, dy) in [ (1, 0); (0, 1); (-1, 0); (0, -1) ] do
                     let x', y' = x + dx, y + dy
-                    if inbounds(x', y') && tiles.[x', y'] = EmptyTile && not (visited.[x', y'])
+                    if isInBounds(x', y') && tiles.[x', y'] = EmptyTile && not (visited.[x', y'])
                     then
                         visited.[x', y'] <- true
                         yield (x', y')
@@ -87,6 +87,7 @@ module Bot =
                 if distance < InfDistance
                 then map.[x, y] <- closestPlayerInd
                 
+                // Find equidistant tiles for every pair of players
                 if distanceMaps
                    |> Array.indexed
                    |> Array.toList
